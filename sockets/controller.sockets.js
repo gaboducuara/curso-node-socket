@@ -1,18 +1,50 @@
+const TicketControl = require('../models/ticket-control');
+
+
+const ticketControls = new TicketControl();
+
 const socketController = (socket) => {
-  console.log("Cliente conectado", socket.id);
+  /// Todo esto se dispara cuando un nuevo cliente se conecta
+  socket.emit('ultimo-ticket', ticketControls.ultimo)
+  socket.emit('estado-actual', ticketControls.ultimos4)
+  socket.emit('tickets-pendientes', ticketControls.tickets.length)
 
-  socket.on("disconnect", () => {
-    console.log("Cliente desconectado", socket.id);
-  });
-  // con este codigo se envian los mensajes
-  //del server, y debe estar configurado en el socket
-  socket.on("enviar-mensaje", (payload, callback) => {
-    // this.io.emit('enviar-mensaje', payload)
-    const id = 123456789;
-    callback(id);
+  socket.on('siguiente-ticket' , ( payload , callback ) => {
 
-    socket.broadcast.emit("enviar-mensaje", payload);
-  });
+    const siguiente = ticketControls.next();
+    callback( siguiente )
+    socket.broadcast.emit('tickets-pendientes' , ticketControls.tickets.length)
+  })
+
+  socket.on('atender-ticket' , ({ escritorio } , callback ) => {
+    // console.log( payload)
+    if (!escritorio) {
+      return callback({
+        ok:false, 
+        msg: 'EL escritorio es obligatorio'
+      });
+    }
+
+    const ticket = ticketControls.atenderTicket( escritorio)
+
+    //Notificar cambios en los ultimos 4 
+    socket.broadcast.emit('estado-actual', ticketControls.ultimos4)
+    socket.emit('tickets-pendientes' , ticketControls.tickets.length)
+    socket.broadcast.emit('tickets-pendientes' , ticketControls.tickets.length)
+
+    
+    if (!ticket ) {
+      callback({
+        ok: false,
+        msg: 'Ya no hay tickets pendientes'
+      })
+    } else {
+      callback({
+        ok: true,
+        ticket
+      })
+    }
+  })
 };
 
 module.exports = { 
